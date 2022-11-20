@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <stdint.h>
 #include <fcntl.h>
 #include <errno.h>
@@ -11,8 +12,7 @@
 #define BUFF_SIZE 4096
 
 // Get IP & port for sock id
-void get_ip_port(int sid, char *s)
-{
+void get_ip_port(int sid, char *s) {
     int r;
     struct sockaddr_in addr;
     socklen_t size;
@@ -23,8 +23,7 @@ void get_ip_port(int sid, char *s)
 }
 
 // Init socket
-int socket_init(int *sid, char *ip, uint16_t port)
-{
+int socket_init(int *sid, char *ip, uint16_t port) {
     int max_con = 7;
     int sock;
     int r = 1;
@@ -44,8 +43,7 @@ int socket_init(int *sid, char *ip, uint16_t port)
 }
 
 // Function for read callback
-void read_cb(struct ev_loop *loop, struct ev_io *watcher, int event)
-{
+void read_cb(struct ev_loop *loop, struct ev_io *watcher, int event) {
     char buff[BUFF_SIZE] = {0};
     char ip[32];
     int r = 0;
@@ -63,13 +61,13 @@ void read_cb(struct ev_loop *loop, struct ev_io *watcher, int event)
         }
     else {
         printf("READ from %s: %s\n", ip, buff);
+        printf("Send echo to %s\n", ip);
         nbyte = write(watcher->fd, buff, sizeof(buff)); // Send echo
         }
 }
 
 // Function for accept callback
-void accept_cb(struct ev_loop *loop, struct ev_io *watcher, int event)
-{
+void accept_cb(struct ev_loop *loop, struct ev_io *watcher, int event) {
     struct sockaddr_in addr;
     socklen_t len;
     int sock;
@@ -87,8 +85,7 @@ void accept_cb(struct ev_loop *loop, struct ev_io *watcher, int event)
     ev_io_start(loop, wc);
 }
 
-int main(int argc, char *argv[])
-{
+int main(int argc, char *argv[]) {
     struct ev_io   accept_io;
     struct ev_loop *loop;
     int sock;
