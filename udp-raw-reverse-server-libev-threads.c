@@ -62,52 +62,6 @@ int tcp_client(char *msg, char *buff) {
     return 0;
 }
 
-// Function for read callback (echo)
-void read_cb_echo(struct ev_loop *loop, struct ev_io *watcher, int event) {
-    char buff[BUFF_SIZE] = {0};
-    char rev[BUFF_SIZE] = {0};
-    char ip[32];
-    int r = 0;
-    int32_t n;
-
-    if( event & EV_ERROR ) { printf("Forbidden event: %d\n", event); return; }
-    n = read(watcher->fd, buff, sizeof(buff));
-    if( n == -1 ) { if( EINTR != errno && EAGAIN != errno ) r = 1; } // Error read TCP
-    else { if( n == 0 ) r = 2; } // TCP Close
-    get_ip_port(watcher->fd, ip);
-    if( r != 0) {
-        printf("(Thread 2) TCP %s CLOSE.\n", ip);
-        ev_io_stop(loop, watcher);
-        free(watcher);
-    }
-    else {
-        printf("(Thread 2) READ from client %s: %s\n", ip, buff);
-        printf("(Thread 2) SEND to local main thread (for reverse).\n");
-        tcp_client(buff, rev);
-        printf("(Thread 2) SEND to client %s: %s\n", ip, rev);
-        n = write(watcher->fd, rev, sizeof(rev)); // send reverse
-    }
-}
-
-// Function for accept callback (echo)
-void accept_cb_echo(struct ev_loop *loop, struct ev_io *watcher, int event) {
-    struct sockaddr_in addr;
-    socklen_t len;
-    int sock;
-    struct ev_io *wc; // Client Watcher
-
-    if( event & EV_ERROR ) { printf("Forbidden  event %d\n", event); return; }
-    // Accept connection
-    len = sizeof(addr);
-    sock = accept(watcher->fd, (struct sockaddr *)&addr, &len);
-    if( sock == -1 ) return;
-    if( fcntl(sock, F_SETFL, fcntl(sock, F_GETFL) | O_NONBLOCK) == -1 ) { close(sock); return; } // Non Blocked
-    printf("(Thread 2) Connected with: %s:%u\n", inet_ntoa(addr.sin_addr), addr.sin_port);
-    wc = (struct ev_io*) malloc(sizeof(struct ev_io));
-    ev_io_init(wc, read_cb_echo, sock, EV_READ); // Init event watcher for read client
-    ev_io_start(loop, wc);
-}
-
 
 /*  Run frontend UDP servers on separate threads  */
 
@@ -210,13 +164,16 @@ void read_cb(struct ev_loop *loop, struct ev_io *watcher, int revents) {
     struct in_addr in, out;
     in.s_addr = ip_header.saddr;
     out.s_addr = ip_header.saddr;
+    printf("\n---------------------------------\n");
     printf("Receive src=%s:%d  dst=%s:%d ", inet_ntoa(in), sport, inet_ntoa(out), dport);
     printf("%d:%d byte ipcsum=%d udpcsum=%d\n", n, n-ip_hlen-udp_hlen, ip_header.check, udp_header.check);
 
     // Send message to main thread for reverse
+    printf("(Thread 2) SEND PAYLOAD to local main thread (for reverse).\n");
     tcp_client(message, rev);
 
     // Send raw UPD to out interface
+    printf("(Thread 2) SEND RAW UDP to iface %s\n", out_iface);
     if(ip_header.ttl > 0) send_raw_udp(&ip_header, &udp_header, rev, n, packet);
 }
 
